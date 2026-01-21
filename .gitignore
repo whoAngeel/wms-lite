@@ -25,3 +25,34 @@
 go.work
 
 # End of https://www.toptal.com/developers/gitignore/api/go
+
+# Binarios
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+
+# Archivos de Go
+*.test
+*.out
+go.work
+
+# Variables de entorno
+.env
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.log

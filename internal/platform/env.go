@@ -41,7 +41,7 @@ func LoadConfig() (*Config, error) {
 	}
 
 	// parsear configuracion de la base de datos
-	dbPort, err := strconv.Atoi(getEnv("DB_PORT", "5433"))
+	dbPort, err := strconv.Atoi(getEnv("DB_PORT", "5434"))
 	if err != nil {
 		return nil, fmt.Errorf("invalid database port: %v", err)
 	}

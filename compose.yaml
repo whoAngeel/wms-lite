@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: wms-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - wms-network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wms-api
+    restart: unless-stopped
+    ports:
+      - "${API_PORT}:${API_PORT}"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5433
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      API_PORT: ${API_PORT}
+      ENV: ${ENV}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - wms-network
+    volumes:
+      - ./:/app
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  wms-network:
+    driver: bridge

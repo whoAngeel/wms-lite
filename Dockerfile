@@ -1,5 +1,5 @@
 # Etapa 1: Builder - Compilar la aplicación
-FROM golang:1.22-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 # Instalar dependencias del sistema
 RUN apk add --no-cache git
@@ -33,7 +33,7 @@ WORKDIR /root/
 COPY --from=builder /app/bin/api .
 
 # Exponer puerto
-EXPOSE 8080
+EXPOSE 4002
 
 # Comando de inicio
 CMD ["./api"]

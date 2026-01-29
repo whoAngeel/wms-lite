@@ -23,7 +23,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: wms-api
     restart: unless-stopped
     env_file:
@@ -45,6 +45,7 @@ services:
       - wms-network
     volumes:
       - ./:/app
+      - /app/tmp
 
 volumes:
   postgres_data:

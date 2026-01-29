@@ -22,7 +22,7 @@ func NewDatabase(cfg DatabaseConfig) (*sqlx.DB, error) {
 	// Abrir conexión con sqlx (envuelve database/sql estándar)
 	db, err := sqlx.Connect("postgres", dsn)
 	if err != nil {
-		return nil, fmt.Errorf("error conectando a la base de datos: %w", err)
+		return nil, fmt.Errorf("error connecting to the database: %w", err)
 	}
 
 	// Configurar pool de conexiones
@@ -32,9 +32,9 @@ func NewDatabase(cfg DatabaseConfig) (*sqlx.DB, error) {
 
 	// Ping para verificar conectividad
 	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("error al hacer ping a la base de datos: %w", err)
+		return nil, fmt.Errorf("error making ping to the database: %w", err)
 	}
 
-	fmt.Println("✅ Conexión a PostgreSQL establecida")
+	fmt.Println("✅ PostgresDB connected successfully")
 	return db, nil
 }

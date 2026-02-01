@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/whoAngeel/wms-lite/internal/movement"
 	"github.com/whoAngeel/wms-lite/internal/platform"
 	"github.com/whoAngeel/wms-lite/internal/product"
 )
@@ -35,13 +36,17 @@ func main() {
 	productService := *product.NewService(productRepo)
 	productHandler := product.NewHandler(&productService)
 
+	movementRepo := movement.NewRepository(db)
+	movementService := *movement.NewService(movementRepo, db)
+	movementHandler := movement.NewHandler(&movementService)
+
 	if cfg.Server.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
 	router := gin.Default()
 
-	setupRoutes(router, productHandler)
+	setupRoutes(router, productHandler, movementHandler)
 
 	srv := &http.Server{
 		Addr:           ":" + cfg.Server.Port,
@@ -76,7 +81,10 @@ func main() {
 	fmt.Println("Server stopped")
 }
 
-func setupRoutes(router *gin.Engine, productHandler *product.Handler) {
+func setupRoutes(router *gin.Engine,
+	productHandler *product.Handler,
+	movementHandler *movement.Handler,
+) {
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status":    "OKitocke",
@@ -95,6 +103,13 @@ func setupRoutes(router *gin.Engine, productHandler *product.Handler) {
 			products.GET("/sku/:sku", productHandler.GetBySKU)
 			products.PUT("/:id", productHandler.Update)
 			products.DELETE("/:id", productHandler.Delete)
+		}
+		movements := v1.Group("/movements")
+		{
+			movements.POST("", movementHandler.Create)
+			movements.GET("", movementHandler.List)
+			movements.GET("/:id", movementHandler.GetByID)
+			movements.GET("/product/:id", movementHandler.ListByProductID)
 		}
 	}
 }

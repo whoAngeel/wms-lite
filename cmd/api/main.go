@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -10,7 +9,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog"
 	"github.com/whoAngeel/wms-lite/internal/movement"
 	"github.com/whoAngeel/wms-lite/internal/platform"
 	"github.com/whoAngeel/wms-lite/internal/product"
@@ -18,12 +19,13 @@ import (
 
 func main() {
 	// 1 load configuration
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	cfg, err := platform.LoadConfig()
 	if err != nil {
 		log.Fatalf("Error loading config: %v", err)
 	}
 
-	fmt.Printf("WMS Lite starting on mode %s\n", cfg.Server.Env)
+	log.Printf("WMS Lite starting on mode %s\n", cfg.Server.Env)
 
 	// 2 connect to database
 	db, err := platform.NewDatabase(cfg.Database)
@@ -46,6 +48,29 @@ func main() {
 
 	router := gin.Default()
 
+	corsConfig := cors.Config{
+		AllowOrigins: []string{
+			"http://localhost:3001", "http://localhost:5137",
+		},
+		AllowMethods: []string{
+			"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS",
+		},
+		AllowHeaders: []string{
+			"Origin", "Content-Type", "Accept", "Authorization",
+		},
+		ExposeHeaders: []string{
+			"Content-Length",
+		},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}
+
+	if cfg.Server.Env == "development" {
+		corsConfig.AllowOrigins = []string{"*"}
+	}
+
+	router.Use(cors.New(corsConfig))
+
 	setupRoutes(router, productHandler, movementHandler)
 
 	srv := &http.Server{
@@ -56,7 +81,7 @@ func main() {
 		MaxHeaderBytes: 1 << 20, // 1 MB,
 	}
 	go func() {
-		fmt.Printf("Server is running on http://localhost:%s", cfg.Server.Port)
+		log.Printf("Server is running on http://localhost:%s", cfg.Server.Port)
 		err := srv.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Error running server: %v", err)
@@ -68,7 +93,7 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit // block until signal received
 
-	fmt.Println("Shutting down server...")
+	log.Printf("Shutting down server...")
 
 	// context con timeout para shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -78,7 +103,7 @@ func main() {
 		log.Printf("Error shutting down server: %v", err)
 	}
 	db.Close()
-	fmt.Println("Server stopped")
+	log.Println("Server stopped")
 }
 
 func setupRoutes(router *gin.Engine,

@@ -7,26 +7,21 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog"
 )
 
 // Handler maneja las peticiones HTTP de movements
 type Handler struct {
 	service *Service
+	logger  zerolog.Logger
 }
 
 // NewHandler crea una nueva instancia de Handler
-func NewHandler(service *Service) *Handler {
-	return &Handler{service: service}
-}
-
-// RegisterRoutes registra las rutas del módulo de movements
-func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
-	movements := rg.Group("/movements")
-	{
-		movements.POST("", h.Create)
-		movements.GET("", h.List)
-		movements.GET("/:id", h.GetByID)
-		movements.GET("/product/:id", h.ListByProductID)
+func NewHandler(service *Service, logger zerolog.Logger) *Handler {
+	loggerModule := logger.With().Str("module", "movements").Logger()
+	return &Handler{
+		service: service,
+		logger:  loggerModule,
 	}
 }
 
@@ -46,6 +41,7 @@ func (h *Handler) Create(c *gin.Context) {
 
 	// Parsear y validar JSON
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.Warn().Err(err).Msg("Invalid request body")
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -65,7 +61,10 @@ func (h *Handler) Create(c *gin.Context) {
 			strings.Contains(errorMessage, "must be") ||
 			strings.Contains(errorMessage, "insufficient stock") ||
 			strings.Contains(errorMessage, "not found") {
+			h.logger.Warn().Err(err).Int("product_id", req.ProductID).Str("movement_type", string(req.MovementType)).Msg("Business validation failed")
 			statusCode = http.StatusBadRequest
+		} else {
+			h.logger.Error().Err(err).Int("product_id", req.ProductID).Str("movement_type", string(req.MovementType)).Msg("Error creating movement")
 		}
 
 		c.JSON(statusCode, gin.H{"error": errorMessage})
@@ -90,6 +89,7 @@ func (h *Handler) GetByID(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.Atoi(idParam)
 	if err != nil {
+		h.logger.Warn().Str("id_param", idParam).Msg("Invalid movement ID format")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid movement ID"})
 		return
 	}
@@ -100,6 +100,8 @@ func (h *Handler) GetByID(c *gin.Context) {
 		statusCode := http.StatusInternalServerError
 		if err == sql.ErrNoRows || strings.Contains(err.Error(), "not found") {
 			statusCode = http.StatusNotFound
+		} else {
+			h.logger.Error().Err(err).Int("movement_id", id).Msg("Error getting movement")
 		}
 		c.JSON(statusCode, gin.H{"error": err.Error()})
 		return
@@ -125,6 +127,7 @@ func (h *Handler) ListByProductID(c *gin.Context) {
 	idParam := c.Param("id")
 	productID, err := strconv.Atoi(idParam)
 	if err != nil {
+		h.logger.Warn().Str("id_param", idParam).Msg("Invalid product ID format")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid product ID"})
 		return
 	}
@@ -139,6 +142,8 @@ func (h *Handler) ListByProductID(c *gin.Context) {
 		statusCode := http.StatusInternalServerError
 		if strings.Contains(err.Error(), "not found") {
 			statusCode = http.StatusNotFound
+		} else {
+			h.logger.Error().Err(err).Int("product_id", productID).Msg("Error listing movements by product")
 		}
 		c.JSON(statusCode, gin.H{"error": err.Error()})
 		return
@@ -193,6 +198,7 @@ func (h *Handler) List(c *gin.Context) {
 	// Obtener movimientos con filtros opcionales
 	response, err := h.service.List(c.Request.Context(), productID, movementType, page, pageSize)
 	if err != nil {
+		h.logger.Error().Err(err).Msg("Error listing movements")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

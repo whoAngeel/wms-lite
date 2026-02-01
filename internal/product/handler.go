@@ -8,15 +8,19 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog"
 )
 
 type Handler struct {
 	service *Service
+	logger  zerolog.Logger
 }
 
-func NewHandler(service *Service) *Handler {
+func NewHandler(service *Service, logger zerolog.Logger) *Handler {
+	moduleLogger := logger.With().Str("module", "product").Logger()
 	return &Handler{
 		service: service,
+		logger:  moduleLogger,
 	}
 }
 
@@ -27,6 +31,7 @@ func (h *Handler) Create(c *gin.Context) {
 	// parsear y validar el body JSON
 	var req CreateProductRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.Warn().Err(err).Msg("Invalid request body")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid data",
 			"details": err.Error(),
@@ -39,46 +44,48 @@ func (h *Handler) Create(c *gin.Context) {
 	if err != nil {
 		// manejar errores de negocio
 		if strings.Contains(err.Error(), "already exists") {
+			h.logger.Warn().Err(err).Str("sku", req.SKU).Msg("Attempt to create duplicate product")
 			c.JSON(http.StatusConflict, gin.H{
 				"error": err.Error(),
 			})
 			return
 		}
 
+		h.logger.Error().Err(err).Str("sku", req.SKU).Msg("Error creating product")
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Error creating product",
 		})
 		return
 	}
+	h.logger.Info().Int("product_id", product.ID).Str("sku", product.SKU).Msg("Product created successfully")
 	c.JSON(http.StatusCreated, product)
 }
 
+// GetByID maneja GET /products/:id
 func (h *Handler) GetByID(c *gin.Context) {
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-	defer cancel()
-
-	idParam := c.Param("id")
-	id, err := strconv.Atoi(idParam)
+	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid ID, must be a number",
-		})
+		h.logger.Warn().
+			Str("id_param", c.Param("id")).
+			Msg("Invalid product ID format")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
 		return
 	}
 
-	// llamar al servicio
-	product, err := h.service.GetByID(ctx, id)
+	product, err := h.service.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": err.Error(),
-			})
+		// Distinguir entre "no encontrado" y "error del servidor"
+		if err.Error() == "product not found" {
+			// No loggear 404 (es normal, ya lo loggea el middleware)
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 			return
 		}
 
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Error getting product",
-		})
+		h.logger.Error().
+			Err(err).
+			Int("product_id", id).
+			Msg("Failed to fetch product")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
 
@@ -105,6 +112,7 @@ func (h *Handler) GetBySKU(c *gin.Context) {
 			})
 			return
 		}
+		h.logger.Error().Err(err).Str("sku", sku).Msg("Error getting product by SKU")
 
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Error getting product by SKU",
@@ -124,6 +132,7 @@ func (h *Handler) GetAll(c *gin.Context) {
 
 	response, err := h.service.GetAll(ctx, page, pageSize)
 	if err != nil {
+		h.logger.Error().Err(err).Int("page", page).Int("page_size", pageSize).Msg("Error getting all products")
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Error getting all products",
 		})
@@ -148,6 +157,7 @@ func (h *Handler) Update(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.Atoi(idParam)
 	if err != nil {
+
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid ID, must be a number",
 		})
@@ -156,6 +166,7 @@ func (h *Handler) Update(c *gin.Context) {
 
 	var req UpdateProductRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.Warn().Err(err).Int("product_id", id).Msg("Invalid request body for update")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid data",
 			"details": err.Error(),
@@ -172,6 +183,7 @@ func (h *Handler) Update(c *gin.Context) {
 			return
 		}
 
+		h.logger.Error().Err(err).Int("product_id", id).Msg("Error updating product")
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Error updating product",
 		})
@@ -188,6 +200,7 @@ func (h *Handler) Delete(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.Atoi(idParam)
 	if err != nil {
+		h.logger.Warn().Err(err).Str("id_param", idParam).Msg("Invalid product ID format for delete")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid ID, must be a number",
 		})
@@ -203,6 +216,7 @@ func (h *Handler) Delete(c *gin.Context) {
 			return
 		}
 
+		h.logger.Error().Err(err).Int("product_id", id).Msg("Error deleting product")
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Error deleting product",
 		})

@@ -37,17 +37,19 @@ func main() {
 
 	productRepo := product.NewRepository(db)
 	productService := *product.NewService(productRepo)
-	productHandler := product.NewHandler(&productService)
+	productHandler := product.NewHandler(&productService, logger)
 
 	movementRepo := movement.NewRepository(db)
 	movementService := *movement.NewService(movementRepo, db)
-	movementHandler := movement.NewHandler(&movementService)
+	movementHandler := movement.NewHandler(&movementService, logger)
 
 	if cfg.Server.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	router := gin.Default()
+	gin.SetMode(gin.ReleaseMode)
+
+	router := gin.New()
 
 	corsConfig := cors.Config{
 		AllowOrigins: []string{
@@ -72,6 +74,7 @@ func main() {
 
 	router.Use(cors.New(corsConfig))
 	router.Use(platform.LoggerMiddleware())
+	router.Use(gin.Recovery())
 
 	setupRoutes(router, productHandler, movementHandler)
 

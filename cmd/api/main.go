@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog"
 	"github.com/whoAngeel/wms-lite/internal/movement"
 	"github.com/whoAngeel/wms-lite/internal/platform"
 	"github.com/whoAngeel/wms-lite/internal/product"
@@ -19,20 +17,23 @@ import (
 
 func main() {
 	// 1 load configuration
-	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	cfg, err := platform.LoadConfig()
 	if err != nil {
-		log.Fatalf("Error loading config: %v", err)
+		panic("Error loading config: " + err.Error())
 	}
 
-	log.Printf("WMS Lite starting on mode %s\n", cfg.Server.Env)
+	logger := platform.InitLogger(cfg.Server.Env)
+
+	logger.Info().Str("env", cfg.Server.Env).Str("port", cfg.Server.Port).Msg("Starting WMS Lite")
 
 	// 2 connect to database
 	db, err := platform.NewDatabase(cfg.Database)
 	if err != nil {
-		log.Fatalf("Error connecting to database: %v", err)
+		logger.Fatal().Err(err).Msg("Error connecting to database")
 	}
 	defer db.Close()
+
+	logger.Info().Msg("Database connected successfully")
 
 	productRepo := product.NewRepository(db)
 	productService := *product.NewService(productRepo)
@@ -70,6 +71,7 @@ func main() {
 	}
 
 	router.Use(cors.New(corsConfig))
+	router.Use(platform.LoggerMiddleware())
 
 	setupRoutes(router, productHandler, movementHandler)
 
@@ -81,10 +83,11 @@ func main() {
 		MaxHeaderBytes: 1 << 20, // 1 MB,
 	}
 	go func() {
-		log.Printf("Server is running on http://localhost:%s", cfg.Server.Port)
+		logger.Info().Str("address", "http://localhost:"+cfg.Server.Port).Msg("Server started successfully")
+
 		err := srv.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Error running server: %v", err)
+			logger.Info().Err(err).Msg("Server failed to start")
 		}
 	}()
 
@@ -93,17 +96,16 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit // block until signal received
 
-	log.Printf("Shutting down server...")
-
+	logger.Info().Msg("Shutting down server...")
 	// context con timeout para shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Printf("Error shutting down server: %v", err)
+		logger.Err(err).Msg("Server failed to shutdown")
 	}
 	db.Close()
-	log.Println("Server stopped")
+	logger.Info().Msg("Server stopped successfully")
 }
 
 func setupRoutes(router *gin.Engine,

@@ -25,7 +25,7 @@ func (r *Repository) Create(ctx context.Context, tx *sqlx.Tx, movement *Movement
 	`
 
 	err := tx.QueryRowxContext(
-		ctx, query, movement.ProductID, movement.MovementType, movement.Reason, movement.CreatedBy,
+		ctx, query, movement.ProductID, movement.MovementType, movement.Quantity, movement.Reason, movement.CreatedBy,
 	).Scan(&movement.ID, &movement.CreatedAt)
 
 	if err != nil {
@@ -53,7 +53,7 @@ func (r *Repository) ListByProductID(ctx context.Context, productID, page, pageS
 	var movements []Movement
 	offset := (page - 1) * pageSize
 	query := `
-		SELECT id, product, movement_type, quantity, reason, created_at, created_by
+		SELECT id, product_id, movement_type, quantity, reason, created_at, created_by
 		FROM movements
 		WHERE product_id = $1
 		ORDER BY created_at DESC

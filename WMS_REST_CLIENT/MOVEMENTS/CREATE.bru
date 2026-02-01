@@ -1,0 +1,26 @@
+meta {
+  name: CREATE
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{URL}}/api/v1/movements
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "product_id": 1,
+    "movement_type": "IN",
+    "quantity": 3,
+    "reason": "compra",
+    "created_by": "angel"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

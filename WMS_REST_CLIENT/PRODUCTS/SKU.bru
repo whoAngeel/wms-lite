@@ -1,0 +1,16 @@
+meta {
+  name: SKU
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{URL}}/api/v1/products/sku/MONITOR-001
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

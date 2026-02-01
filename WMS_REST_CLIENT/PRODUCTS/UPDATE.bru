@@ -1,0 +1,22 @@
+meta {
+  name: UPDATE
+  type: http
+  seq: 5
+}
+
+put {
+  url: {{URL}}/api/v1/products/13
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "name": "LAPLICERO AZUL"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

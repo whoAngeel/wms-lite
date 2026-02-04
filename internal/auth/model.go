@@ -55,6 +55,7 @@ type AuthResponse struct {
 type UserResponse struct {
 	ID        int       `json:"id"`
 	Email     string    `json:"email"`
+	FullName  string    `json:"full_name"`
 	Role      string    `json:"role"`
 	IsActive  bool      `json:"is_active"`
 	CreatedAt time.Time `json:"created_at"`
@@ -76,9 +77,10 @@ type SessionListResponse struct {
 
 /// JWT Claims (payload del access token)
 type JWTClaims struct { // son para los datos que van dentro del token
-	UserID int    `json:"user_id"`
-	Email  string `json:"email"`
-	Role   string `json:"role"`
+	UserID   int    `json:"user_id"`
+	Email    string `json:"email"`
+	FullName string `json:"full_name"`
+	Role     string `json:"role"`
 }
 
 // HELPERS
@@ -87,6 +89,7 @@ func (u *User) ToUserResponse() UserResponse {
 	return UserResponse{
 		ID:        u.ID,
 		Email:     u.Email,
+		FullName:  u.FullName,
 		Role:      u.Role,
 		IsActive:  u.IsActive,
 		CreatedAt: u.CreatedAt,

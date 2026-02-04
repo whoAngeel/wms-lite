@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/whoAngeel/wms-lite/internal/auth"
 	"github.com/whoAngeel/wms-lite/internal/movement"
 	"github.com/whoAngeel/wms-lite/internal/platform"
 	"github.com/whoAngeel/wms-lite/internal/product"
@@ -42,6 +43,11 @@ func main() {
 	movementRepo := movement.NewRepository(db)
 	movementService := *movement.NewService(movementRepo, db)
 	movementHandler := movement.NewHandler(&movementService, logger)
+
+	authRepo := auth.NewRepository(db, logger)
+	authService := auth.NewService(authRepo, db, logger, cfg.Auth.JWTSecret)
+	authHandler := auth.NewHandler(authService, logger)
+	authMiddleware := auth.NewMiddleware(authService, logger)
 
 	if cfg.Server.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -76,7 +82,7 @@ func main() {
 	router.Use(platform.LoggerMiddleware())
 	router.Use(gin.Recovery())
 
-	setupRoutes(router, productHandler, movementHandler)
+	setupRoutes(router, productHandler, movementHandler, authHandler, authMiddleware)
 
 	srv := &http.Server{
 		Addr:           ":" + cfg.Server.Port,
@@ -111,9 +117,12 @@ func main() {
 	logger.Info().Msg("Server stopped successfully")
 }
 
-func setupRoutes(router *gin.Engine,
+func setupRoutes(
+	router *gin.Engine,
 	productHandler *product.Handler,
 	movementHandler *movement.Handler,
+	authHandler *auth.Handler,
+	authMiddleware *auth.Middleware,
 ) {
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
@@ -125,18 +134,37 @@ func setupRoutes(router *gin.Engine,
 	v1 := router.Group("/api/v1")
 
 	{
-		products := v1.Group("/products")
+		authRoutes := v1.Group("/auth")
 		{
-			products.POST("", productHandler.Create)
+			authRoutes.POST("/register", authHandler.Register)
+			authRoutes.POST("/login", authHandler.Login)
+			authRoutes.POST("/refresh", authHandler.Refresh)
+			authRoutes.POST("/logout", authHandler.Logout)
+
+			authRoutes.Use(authMiddleware.RequireAuth())
+
+			{
+				authRoutes.GET("/me", authHandler.Me)
+				authRoutes.GET("/sessions", authHandler.GetSessions)
+				authRoutes.POST("/logout-all", authHandler.LogoutEverywhere)
+			}
+		}
+
+		products := v1.Group("/products")
+		products.Use(authMiddleware.RequireAuth())
+		{
+			products.POST("", authMiddleware.RequireRole("admin", "user"), productHandler.Create)
 			products.GET("", productHandler.GetAll)
 			products.GET("/:id", productHandler.GetByID)
 			products.GET("/sku/:sku", productHandler.GetBySKU)
-			products.PUT("/:id", productHandler.Update)
-			products.DELETE("/:id", productHandler.Delete)
+			products.PUT("/:id", authMiddleware.RequireRole("admin", "user"), productHandler.Update)
+			products.DELETE("/:id", authMiddleware.RequireRole("admin"), productHandler.Delete)
 		}
+
 		movements := v1.Group("/movements")
+		movements.Use(authMiddleware.RequireAuth())
 		{
-			movements.POST("", movementHandler.Create)
+			movements.POST("", authMiddleware.RequireRole("admin", "user"), movementHandler.Create)
 			movements.GET("", movementHandler.List)
 			movements.GET("/:id", movementHandler.GetByID)
 			movements.GET("/product/:id", movementHandler.ListByProductID)

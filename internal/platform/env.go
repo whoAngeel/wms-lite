@@ -13,6 +13,7 @@ import (
 type Config struct {
 	Database DatabaseConfig
 	Server   ServerConfig
+	Auth     AuthConfig
 }
 
 type DatabaseConfig struct {
@@ -29,6 +30,10 @@ type DatabaseConfig struct {
 type ServerConfig struct {
 	Port string
 	Env  string
+}
+
+type AuthConfig struct {
+	JWTSecret string
 }
 
 // loadConfig carga las variables de entorno
@@ -54,6 +59,11 @@ func LoadConfig() (*Config, error) {
 		connMaxLifeTime = 5 * time.Minute
 	}
 
+	jwtSecret := getEnv("JWT_SECRET", "")
+	if jwtSecret == "" {
+		return nil, fmt.Errorf("JWT_SECRET is not set")
+	}
+
 	config := &Config{
 		Database: DatabaseConfig{
 			Host:            getEnv("DB_HOST", "localhost"),
@@ -68,6 +78,9 @@ func LoadConfig() (*Config, error) {
 		Server: ServerConfig{
 			Port: getEnv("API_PORT", "4002"),
 			Env:  getEnv("ENV", "development"),
+		},
+		Auth: AuthConfig{
+			JWTSecret: jwtSecret,
 		},
 	}
 	return config, nil

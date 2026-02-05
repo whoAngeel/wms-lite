@@ -1,4 +1,4 @@
-name: Deploy to Home Server
+name: Deploy Backend
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
 
 jobs:
   build-push:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest # Esto sigue corriendo en GitHub para no saturar tu laptop
     steps:
       - uses: actions/checkout@v4
       
@@ -20,33 +20,16 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Dockerfile 
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/wms-api:latest
 
   deploy:
     needs: build-push
-    runs-on: ubuntu-latest
+    runs-on: self-hosted 
     steps:
-      - name: Check Secrets
+      - name: Pull and Restart Container
         run: |
-          if [ -z "${{ secrets.TS_OAUTH_CLIENT_ID }}" ]; then echo "CLIENT_ID IS EMPTY"; else echo "CLIENT_ID IS SET"; fi
-          if [ -z "${{ secrets.TS_OAUTH_SECRET }}" ]; then echo "SECRET IS EMPTY"; else echo "SECRET IS SET"; fi
-
-      - name: Connect to Tailscale
-        uses: tailscale/github-action@v2
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-
-      - name: SSH and Update
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            cd ~/app-wms
-            docker compose -f compose.prod.yml pull
-            docker compose -f compose.prod.yml up -d
-            docker image prune -f
+          cd ~/projects/wms-backend
+          docker compose -f compose.prod.yml pull
+          docker compose -f compose.prod.yml up -d
+          docker image prune -f

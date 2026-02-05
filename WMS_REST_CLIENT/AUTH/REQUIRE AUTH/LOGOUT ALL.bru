@@ -1,16 +1,15 @@
 meta {
-  name: DELETE
+  name: LOGOUT ALL
   type: http
-  seq: 6
+  seq: 3
 }
 
-delete {
-  url: {{URL}}/api/v1/products/5
+post {
+  url: {{URL}}/api/v1/auth/logout-all
   body: none
   auth: inherit
 }
 
 settings {
   encodeUrl: true
-  timeout: 0
 }

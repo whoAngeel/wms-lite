@@ -1,16 +1,15 @@
 meta {
-  name: DELETE
+  name: ME
   type: http
-  seq: 6
+  seq: 1
 }
 
-delete {
-  url: {{URL}}/api/v1/products/5
+get {
+  url: {{URL}}/api/v1/auth/me
   body: none
   auth: inherit
 }
 
 settings {
   encodeUrl: true
-  timeout: 0
 }

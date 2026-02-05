@@ -1,0 +1,25 @@
+meta {
+  name: REGISTER
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{URL}}/api/v1/auth/register
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "email": "admin.agl@gmail.com",
+    "full_name": "Angel Zorrilla",
+    "password":"admin.agl",
+    "role": "admin"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

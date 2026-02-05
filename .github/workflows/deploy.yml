@@ -6,7 +6,7 @@ on:
 
 jobs:
   build-push:
-    runs-on: ubuntu-latest # Esto sigue corriendo en GitHub para no saturar tu laptop
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       
@@ -23,8 +23,27 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/wms-api:latest
 
-  deploy:
+  migrate:
     needs: build-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install golang-migrate
+        run: |
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.0/migrate.linux-amd64.tar.gz | tar xvz
+          sudo mv migrate /usr/local/bin/migrate
+          
+      - name: Run Database Migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          echo "🔄 Running migrations on Neon..."
+          migrate -database "$DATABASE_URL" -path ./migrations up
+          echo "✅ Migrations completed"
+
+  deploy:
+    needs: migrate
     runs-on: self-hosted 
     steps:
       - name: Pull and Restart Container

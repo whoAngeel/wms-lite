@@ -28,6 +28,11 @@ jobs:
     needs: build-push
     runs-on: ubuntu-latest
     steps:
+      - name: Connect to taliscalee
+        usus: taliscale/github-action@v2
+        with:
+          authkey: ${{ secrets.TALISCALEE_AUTHKEY }}
+          
       - name: SSH and Update
         uses: appleboy/ssh-action@master
         with:

@@ -22,6 +22,7 @@ type DatabaseConfig struct {
 	User            string
 	Name            string
 	Password        string
+	URL             string
 	MaxOpenConns    int
 	MaxIdleConns    int
 	ConnMaxLifeTime time.Duration
@@ -71,6 +72,7 @@ func LoadConfig() (*Config, error) {
 			User:            getEnv("DB_USER", "postgres"),
 			Name:            getEnv("DB_NAME", "wms_db"),
 			Password:        getEnv("DB_PASSWORD", "postgres"),
+			URL:             getEnv("DATABASE_URL", ""),
 			MaxOpenConns:    maxOpenConns,
 			MaxIdleConns:    maxIdleConns,
 			ConnMaxLifeTime: connMaxLifeTime,

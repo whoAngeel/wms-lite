@@ -10,14 +10,19 @@ import (
 // NewDatabase crea una conexión a PostgreSQL con pool de conexiones
 func NewDatabase(cfg DatabaseConfig) (*sqlx.DB, error) {
 	// DSN (Data Source Name) - string de conexión
-	dsn := fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-		cfg.Host,
-		cfg.Port,
-		cfg.User,
-		cfg.Password,
-		cfg.Name,
-	)
+	var dsn string
+	if cfg.URL != "" {
+		dsn = cfg.URL
+	} else {
+		dsn = fmt.Sprintf(
+			"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+			cfg.Host,
+			cfg.Port,
+			cfg.User,
+			cfg.Password,
+			cfg.Name,
+		)
+	}
 
 	// Abrir conexión con sqlx (envuelve database/sql estándar)
 	db, err := sqlx.Connect("postgres", dsn)

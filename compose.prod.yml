@@ -1,0 +1,20 @@
+services:
+  api:
+    image: subkey/wms-api:latest
+    container_name: wms-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${API_PORT}:${API_PORT}"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      PORT: ${API_PORT}
+      ENV: production
+      JWT_SECRET: ${JWT_SECRET}
+    networks:
+      - wms-network
+
+networks:
+  wms-network:
+    driver: bridge

@@ -25,20 +25,20 @@ func NewRepository(db *sqlx.DB, logger zerolog.Logger) *Repository {
 	}
 }
 
-func (r *Repository) CreateUser(ctx context.Context, email, password, role string) (*User, error) {
+func (r *Repository) CreateUser(ctx context.Context, email, fullName, password, role string) (*User, error) {
 	passwordHash, err := hashPassword(password)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
 	query := `
-		INSERT INTO users (email, password_hash, role)
-		VALUES ($1, $2, $3)
+		INSERT INTO users (email, full_name, password_hash, role)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id, email, full_name, password_hash, role, is_active, created_at, updated_at
 	`
 
 	var user User
-	err = r.db.QueryRowContext(ctx, query, email, passwordHash, role).Scan(
+	err = r.db.QueryRowContext(ctx, query, email, fullName, passwordHash, role).Scan(
 		&user.ID,
 		&user.Email,
 		&user.FullName,
@@ -138,7 +138,7 @@ func (r *Repository) CreateSession(
 				user_id, refresh_token, token_family, device_name, ip_address, user_agent, expires_at
 			)
 			VALUES ($1, $2, $3, $4, $5, $6, $7)
-			RETURNING id, user_id, refresh_token, token_family, device_name, ip_address, user_agent, expires_at, created_at, last_used_at
+			RETURNING id, user_id, refresh_token, token_family, is_revoked, device_name, ip_address, user_agent, expires_at, created_at, last_used_at, parent_token_id
 		`
 	var session Session
 	err := r.db.QueryRowContext(
@@ -213,16 +213,14 @@ func (r *Repository) RotateRefreshToken(
 	oldSession *Session,
 	expiresAt time.Time,
 ) (*Session, error) {
-	// genera nuevo token
 	newRefreshToken := uuid.New().String()
 
-	// insertar nueva sesion manteniendo el mismo token family
 	query := `
 		INSERT INTO sessions (
 			user_id, refresh_token, token_family, device_name, ip_address, user_agent, expires_at, parent_token_id
 		)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		RETURNING id, user_id, refresh_token, token_family, device_name, ip_address, user_agent, expires_at, created_at, last_used_at
+		RETURNING id, user_id, refresh_token, token_family, is_revoked, device_name, ip_address, user_agent, expires_at, created_at, last_used_at, parent_token_id
 	`
 
 	var newSession Session
@@ -230,12 +228,12 @@ func (r *Repository) RotateRefreshToken(
 		ctx, query,
 		oldSession.UserID,
 		newRefreshToken,
-		oldSession.TokenFamily, // ← MISMO family que el token anterior
+		oldSession.TokenFamily,
 		oldSession.DeviceName,
 		oldSession.IPAddress,
 		oldSession.UserAgent,
 		expiresAt,
-		oldSession.ID, // ← El token viejo es el "padre" del nuevo
+		oldSession.ID,
 	).Scan(
 		&newSession.ID,
 		&newSession.UserID,
@@ -245,13 +243,14 @@ func (r *Repository) RotateRefreshToken(
 		&newSession.DeviceName,
 		&newSession.IPAddress,
 		&newSession.UserAgent,
+		&newSession.ExpiresAt,
 		&newSession.CreatedAt,
 		&newSession.LastUsedAt,
-		&newSession.ExpiresAt,
 		&newSession.ParentTokenID,
 	)
 
 	if err != nil {
+		r.logger.Error().Err(err).Int("user_id", oldSession.UserID).Int("old_session_id", oldSession.ID).Msg("failed to rotate refresh token")
 		return nil, err
 	}
 

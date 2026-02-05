@@ -50,7 +50,7 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*UserRespo
 	}
 
 	// crear usuario (el repository hashea el password)
-	user, err := s.repo.CreateUser(ctx, req.Email, req.Password, role)
+	user, err := s.repo.CreateUser(ctx, req.Email, req.FullName, req.Password, role)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Failed to create user")
 		return nil, fmt.Errorf("failed to create user")

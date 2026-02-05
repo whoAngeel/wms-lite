@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(go test:*)"
+      "Bash(go test:*)",
+      "mcp__TestSprite__testsprite_bootstrap",
+      "mcp__TestSprite__testsprite_generate_backend_test_plan",
+      "Bash(node:*)",
+      "Bash(curl:*)",
+      "mcp__filesystem__write_file",
+      "Bash(npx @testsprite/testsprite-mcp generateCodeAndExecute:*)"
     ]
   }
 }

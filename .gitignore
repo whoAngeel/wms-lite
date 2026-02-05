@@ -56,3 +56,23 @@ Thumbs.db
 
 # Docker
 *.log
+.claude/settings.local.json
+testsprite_tests/standard_prd.json
+testsprite_tests/TC001_create_product_with_valid_data.py
+testsprite_tests/TC002_create_product_with_duplicate_sku.py
+testsprite_tests/TC003_get_product_by_valid_id.py
+testsprite_tests/TC004_get_product_by_invalid_id_format.py
+testsprite_tests/TC005_get_product_by_sku.py
+testsprite_tests/TC006_list_all_products_with_pagination.py
+testsprite_tests/TC007_update_product_with_valid_data.py
+testsprite_tests/TC008_update_product_with_invalid_data.py
+testsprite_tests/TC008_update_product_with_invalid_input.py
+testsprite_tests/TC009_delete_product_with_valid_id.py
+testsprite_tests/TC010_delete_product_with_invalid_id_format.py
+testsprite_tests/testsprite_backend_test_plan.json
+testsprite_tests/tmp/code_summary.json
+testsprite_tests/tmp/config.json
+testsprite_tests/tmp/raw_report.md
+testsprite_tests/tmp/test_results.json
+testsprite_tests/tmp/prd_files/PRD.md
+.claude/settings.local.json

@@ -12,6 +12,8 @@ services:
       PORT: ${API_PORT}
       ENV: production
       JWT_SECRET: ${JWT_SECRET}
+      # CORS: Separar dominios por comas. Ejemplo: https://mi-frontend.com,http://localhost:3000
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
     networks:
       - wms-network
 

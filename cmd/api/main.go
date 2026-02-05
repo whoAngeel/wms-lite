@@ -58,9 +58,7 @@ func main() {
 	router := gin.New()
 
 	corsConfig := cors.Config{
-		AllowOrigins: []string{
-			"http://localhost:3001", "http://localhost:5137",
-		},
+		AllowOrigins: cfg.Server.AllowedOrigins,
 		AllowMethods: []string{
 			"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS",
 		},
@@ -92,7 +90,7 @@ func main() {
 		MaxHeaderBytes: 1 << 20, // 1 MB,
 	}
 	go func() {
-		logger.Info().Str("address", "http://localhost:"+cfg.Server.Port).Msg("Server started successfully")
+		logger.Info().Str("address", ":"+cfg.Server.Port).Msg("Server started successfully")
 
 		err := srv.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {

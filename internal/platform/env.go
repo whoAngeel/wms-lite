@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -29,8 +30,9 @@ type DatabaseConfig struct {
 }
 
 type ServerConfig struct {
-	Port string
-	Env  string
+	Port           string
+	Env            string
+	AllowedOrigins []string
 }
 
 type AuthConfig struct {
@@ -78,8 +80,9 @@ func LoadConfig() (*Config, error) {
 			ConnMaxLifeTime: connMaxLifeTime,
 		},
 		Server: ServerConfig{
-			Port: getEnv("API_PORT", "4002"),
-			Env:  getEnv("ENV", "development"),
+			Port:           getEnv("API_PORT", "4002"),
+			Env:            getEnv("ENV", "development"),
+			AllowedOrigins: strings.Split(getEnv("ALLOWED_ORIGINS", "*"), ","),
 		},
 		Auth: AuthConfig{
 			JWTSecret: jwtSecret,

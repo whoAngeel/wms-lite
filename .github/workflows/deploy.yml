@@ -28,6 +28,11 @@ jobs:
     needs: build-push
     runs-on: ubuntu-latest
     steps:
+      - name: Check Secrets
+        run: |
+          if [ -z "${{ secrets.TS_OAUTH_CLIENT_ID }}" ]; then echo "CLIENT_ID IS EMPTY"; else echo "CLIENT_ID IS SET"; fi
+          if [ -z "${{ secrets.TS_OAUTH_SECRET }}" ]; then echo "SECRET IS EMPTY"; else echo "SECRET IS SET"; fi
+
       - name: Connect to Tailscale
         uses: tailscale/github-action@v2
         with:

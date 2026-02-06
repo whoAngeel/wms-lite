@@ -36,7 +36,7 @@ func main() {
 
 	logger.Info().Msg("Database connected successfully")
 
-	productRepo := product.NewRepository(db)
+	productRepo := product.NewRepository(db, logger)
 	productService := *product.NewService(productRepo)
 	productHandler := product.NewHandler(&productService, logger)
 
@@ -153,10 +153,13 @@ func setupRoutes(
 		{
 			products.POST("", authMiddleware.RequireRole("admin", "user"), productHandler.Create)
 			products.GET("", productHandler.GetAll)
+			products.GET("/deleted", authMiddleware.RequireRole("admin"), productHandler.GetAllDeleted)
 			products.GET("/:id", productHandler.GetByID)
 			products.GET("/sku/:sku", productHandler.GetBySKU)
 			products.PUT("/:id", authMiddleware.RequireRole("admin", "user"), productHandler.Update)
-			products.DELETE("/:id", authMiddleware.RequireRole("admin"), productHandler.Delete)
+			products.DELETE("/:id", authMiddleware.RequireRole("admin"), productHandler.SoftDelete)
+			products.PATCH("/:id", authMiddleware.RequireRole("admin"), productHandler.Restore)
+
 		}
 
 		movements := v1.Group("/movements")

@@ -49,6 +49,11 @@ func (h *Handler) Create(c *gin.Context) {
 	// Normalizar movement_type a mayúsculas
 	req.MovementType = MovementType(strings.ToUpper(string(req.MovementType)))
 
+	// Obtener usuario del context (setado por middleware)
+	if email, exists := c.Get("email"); exists {
+		req.CreatedBy = email.(string)
+	}
+
 	// Crear movimiento
 	response, err := h.service.CreateMovement(c.Request.Context(), req)
 	if err != nil {

@@ -172,3 +172,65 @@ func (s *Service) validateUpdateRequest(req UpdateProductRequest) error {
 
 	return nil
 }
+
+func (s *Service) SoftDelete(ctx context.Context, id int) error {
+	// validar id
+	if id == 0 {
+		return fmt.Errorf("invalid product id")
+	}
+
+	// intentar hacer soft delete
+	err := s.repo.SoftDelete(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Service) Restore(ctx context.Context, id int) error {
+	if id == 0 {
+		return fmt.Errorf("invalid product id")
+	}
+
+	err := s.repo.Restore(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Service) GetDeleted(ctx context.Context, page, pageSize int) (*PaginatedResponse, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+
+	products, total, err := s.repo.GetDeleted(ctx, page, pageSize)
+	if err != nil {
+		return nil, err
+	}
+
+	var responses []DeletedProductResponse
+	for _, product := range products {
+		responses = append(responses, product.ToDeletedResponse())
+	}
+
+	totalPages := (total + pageSize - 1) / pageSize
+
+	response := &PaginatedResponse{
+		Data: responses,
+		Pagination: Pagination{
+			Page:       page,
+			PageSize:   pageSize,
+			TotalPages: totalPages,
+			Total:      total,
+		},
+	}
+
+	return response, nil
+
+}

@@ -6,14 +6,17 @@ import (
 	"fmt"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/rs/zerolog"
 )
 
 type Repository struct {
-	db *sqlx.DB
+	db     *sqlx.DB
+	logger zerolog.Logger
 }
 
-func NewRepository(db *sqlx.DB) *Repository {
-	return &Repository{db: db}
+func NewRepository(db *sqlx.DB, logger zerolog.Logger) *Repository {
+	moduleLogger := logger.With().Str("module", "product").Logger()
+	return &Repository{db: db, logger: moduleLogger}
 }
 
 // inserta un nuevo producto
@@ -40,7 +43,7 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*Product, error) {
 	query := `
 		SELECT id, sku, name, description, stock_quantity, created_at, updated_at
 		FROM products
-		WHERE id = $1
+		WHERE id = $1 AND deleted_at IS NULL
 	`
 
 	var product Product
@@ -58,7 +61,7 @@ func (r *Repository) GetBySKU(ctx context.Context, sku string) (*Product, error)
 	query := `
 		SELECT id, sku, name, description, stock_quantity, created_at, updated_at
 		FROM products
-		WHERE sku = $1
+		WHERE sku = $1 AND deleted_at IS NULL
 	`
 
 	var product Product
@@ -76,6 +79,7 @@ func (r *Repository) GetAll(ctx context.Context, limit, offset int) ([]Product, 
 	query := `
 		SELECT id, sku, name, description, stock_quantity, created_at, updated_at
 		FROM products
+		WHERE deleted_at IS NULL
 		ORDER BY created_at DESC
 		LIMIT $1 OFFSET $2
 	`
@@ -89,7 +93,7 @@ func (r *Repository) GetAll(ctx context.Context, limit, offset int) ([]Product, 
 }
 
 func (r *Repository) Count(ctx context.Context) (int, error) {
-	query := `SELECT COUNT(*) FROM products`
+	query := `SELECT COUNT(*) FROM products WHERE deleted_at IS NULL`
 
 	var count int
 	err := r.db.GetContext(ctx, &count, query)
@@ -147,4 +151,92 @@ func (r *Repository) Delete(ctx context.Context, id int) error {
 		return fmt.Errorf("product with id [%d] not found", id)
 	}
 	return nil
+}
+
+func (r *Repository) SoftDelete(ctx context.Context, id int) error {
+	query := `
+		UPDATE products 
+		SET deleted_at = CURRENT_TIMESTAMP
+		WHERE id = $1 AND deleted_at IS NULL
+	`
+	result, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		r.logger.Error().Err(err).Int("product_id", id).Msg("Failed to soft delete product")
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		r.logger.Warn().Int("product_id", id).Msg("Product not found or already deleted")
+		return fmt.Errorf("product not found or already deleted")
+	}
+
+	r.logger.Info().Int("product_id", id).Msg("Product soft deleted successfully")
+	return nil
+
+}
+
+func (r *Repository) Restore(ctx context.Context, id int) error {
+	query := `
+		UPDATE products
+		SET deleted_at = NULL
+		WHERE id = $1 AND deleted_at IS NOT NULL
+	`
+
+	result, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		r.logger.Error().Err(err).Int("product_id", id).Msg("Failed to restore product")
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		r.logger.Warn().Int("product_id", id).Msg("Product not found or already active")
+		return fmt.Errorf("product not found or already active")
+	}
+
+	r.logger.Info().Int("product_id", id).Msg("Product restored successfully")
+	return nil
+}
+
+func (r *Repository) GetDeleted(ctx context.Context, page, pageSize int) ([]Product, int, error) {
+	offset := (page - 1) * pageSize
+
+	query := `
+		SELECT id, sku, name, description, stock_quantity, created_at, updated_at, deleted_at
+		FROM products
+		WHERE deleted_at IS NOT NULL
+		ORDER BY deleted_at DESC
+		LIMIT $1 OFFSET $2
+	`
+
+	var products []Product
+	err := r.db.SelectContext(ctx, &products, query, pageSize, offset)
+	if err != nil {
+		r.logger.Error().Err(err).Msg("Failed to get deleted products")
+		return nil, 0, err
+	}
+
+	var total int
+	countQuery := `
+		SELECT COUNT(*) FROM products WHERE deleted_at IS NOT NULL`
+
+	err = r.db.GetContext(ctx, &total, countQuery)
+	if err != nil {
+		r.logger.Error().Err(err).Msg("Failed to count deleted products")
+		return nil, 0, err
+	}
+
+	r.logger.Info().Int("page", page).Int("pageSize", pageSize).Int("total", total).Msg("Deleted products retrieved successfully")
+
+	return products, total, nil
+
 }

@@ -225,3 +225,80 @@ func (h *Handler) Delete(c *gin.Context) {
 
 	c.JSON(http.StatusNoContent, nil)
 }
+
+func (h *Handler) SoftDelete(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		h.logger.Warn().Err(err).Str("id_param", idStr).Msg("Invalid product ID format for get deleted")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid ID, must be a number",
+		})
+		return
+	}
+
+	err = h.service.SoftDelete(ctx, id)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+
+		h.logger.Error().Err(err).Int("product_id", id).Msg("Failed to soft delete product")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to soft delete product"})
+		return
+	}
+
+	h.logger.Info().Int("product_id", id).Msg("Product soft deleted successfully")
+	c.JSON(http.StatusOK, gin.H{"message": "Product soft deleted successfully"})
+}
+
+func (h *Handler) Restore(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		h.logger.Warn().Err(err).Str("id_param", idStr).Msg("Invalid product ID format for restore")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid ID, must be a number",
+		})
+		return
+	}
+
+	err = h.service.Restore(ctx, id)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+
+		h.logger.Error().Err(err).Int("product_id", id).Msg("Failed to restore product")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to restore product"})
+		return
+	}
+
+	h.logger.Info().Int("product_id", id).Msg("Product restored successfully")
+	c.JSON(http.StatusOK, gin.H{"message": "Product restored successfully"})
+}
+
+func (h *Handler) GetAllDeleted(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
+
+	response, err := h.service.GetDeleted(ctx, page, pageSize)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to get deleted products")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve deleted products"})
+	}
+
+	h.logger.Info().Int("page", page).Int("page_size", pageSize).Msg("Deleted products retrieved successfully")
+	c.JSON(http.StatusOK, response)
+}

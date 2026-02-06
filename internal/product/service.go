@@ -89,8 +89,13 @@ func (s *Service) GetAll(ctx context.Context, page, pageSize int) (*ProductListR
 	if err != nil {
 		return nil, fmt.Errorf("error counting products: %w", err)
 	}
+	responseList := make([]ProductResponse, len(products))
+	for i, p := range products {
+		responseList[i] = p.ToResponse()
+	}
+
 	return &ProductListResponse{
-		Products: products,
+		Products: responseList,
 		Total:    total,
 	}, nil
 }

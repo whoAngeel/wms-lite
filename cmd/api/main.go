@@ -153,6 +153,7 @@ func setupRoutes(
 		{
 			products.POST("", authMiddleware.RequireRole("admin", "user"), productHandler.Create)
 			products.GET("", productHandler.GetAll)
+			products.GET("/search", productHandler.Search)
 			products.GET("/deleted", authMiddleware.RequireRole("admin"), productHandler.GetAllDeleted)
 			products.GET("/:id", productHandler.GetByID)
 			products.GET("/sku/:sku", productHandler.GetBySKU)

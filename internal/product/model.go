@@ -3,14 +3,14 @@ package product
 import "time"
 
 type Product struct {
-	ID          int       `json:"id" db:"id"`
-	SKU         string    `json:"sku" db:"sku"`
-	Name        string    `json:"name" db:"name"`
-	Description string    `json:"description" db:"description"`
-	Stock       int       `json:"stock_quantity" db:"stock_quantity"`
-	CreatedAt   time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
-	DeletedAt   time.Time `json:"deleted_at,omitempty" db:"deleted_at"`
+	ID          int        `json:"id" db:"id"`
+	SKU         string     `json:"sku" db:"sku"`
+	Name        string     `json:"name" db:"name"`
+	Description string     `json:"description" db:"description"`
+	Stock       int        `json:"stock_quantity" db:"stock_quantity"`
+	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at" db:"updated_at"`
+	DeletedAt   *time.Time `json:"deleted_at,omitempty" db:"deleted_at"`
 }
 
 // create productRequest es el payload para crear un producto
@@ -40,14 +40,14 @@ type ProductResponse struct {
 
 // DeletedProductResponse DTO para productos eliminados (incluye deleted_at)
 type DeletedProductResponse struct {
-	ID          int       `json:"id"`
-	SKU         string    `json:"sku"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	Stock       int       `json:"stock_quantity"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	DeletedAt   time.Time `json:"deleted_at"`
+	ID          int        `json:"id"`
+	SKU         string     `json:"sku"`
+	Name        string     `json:"name"`
+	Description string     `json:"description"`
+	Stock       int        `json:"stock_quantity"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	DeletedAt   *time.Time `json:"deleted_at"`
 }
 
 type ProductListResponse struct {
@@ -65,6 +65,17 @@ type Pagination struct {
 	PageSize   int `json:"page_size"`
 	Total      int `json:"total"`
 	TotalPages int `json:"total_pages"`
+}
+
+type SearchFilters struct {
+	Name     string `form:"name"`
+	SKU      string `form:"sku"`
+	MinStock *int   `form:"min_stock"`
+	MaxStock *int   `form:"max_stock"`
+	FromDate string `form:"from_date"`
+	ToDate   string `form:"to_date"`
+	Page     int    `form:"page"`
+	PageSize int    `form:"page_size"`
 }
 
 // Converters

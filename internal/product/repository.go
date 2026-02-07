@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/rs/zerolog"
@@ -239,4 +240,94 @@ func (r *Repository) GetDeleted(ctx context.Context, page, pageSize int) ([]Prod
 
 	return products, total, nil
 
+}
+
+func (r *Repository) Search(ctx context.Context, filters SearchFilters) ([]Product, int, error) {
+	// query base
+	baseQuery := `
+		SELECT id, sku, name, description, stock_quantity, created_at, updated_at, deleted_at
+		FROM products
+		WHERE deleted_at IS NULL
+	`
+	var conditions []string
+	var args []interface{}
+	argPosition := 1
+
+	if filters.Name != "" {
+		conditions = append(conditions, fmt.Sprintf(" name ILIKE '%%' || $%d || '%%'", argPosition))
+		args = append(args, filters.Name)
+		argPosition++
+	}
+
+	if filters.SKU != "" {
+		conditions = append(conditions, fmt.Sprintf(" sku ILIKE '%%' || $%d || '%%'", argPosition))
+		args = append(args, filters.SKU)
+		argPosition++
+	}
+
+	if filters.MinStock != nil {
+		conditions = append(conditions, fmt.Sprintf(" stock_quantity >= $%d", argPosition))
+		args = append(args, *filters.MinStock)
+		argPosition++
+	}
+
+	if filters.MaxStock != nil {
+		conditions = append(conditions, fmt.Sprintf(" stock_quantity <= $%d", argPosition))
+		args = append(args, *filters.MaxStock)
+		argPosition++
+	}
+
+	if filters.FromDate != "" {
+		conditions = append(conditions, fmt.Sprintf(" created_at >= $%d", argPosition))
+		args = append(args, filters.FromDate)
+		argPosition++
+	}
+
+	if filters.ToDate != "" {
+		conditions = append(conditions, fmt.Sprintf(
+			" created_at <= $%d::date + INTERVAL '23 hours 59 minutes 59 seconds'",
+			argPosition,
+		))
+		args = append(args, filters.ToDate)
+		argPosition++
+	}
+
+	if len(conditions) > 0 {
+		baseQuery += " AND " + strings.Join(conditions, " AND ")
+	}
+
+	baseQuery += " ORDER BY created_at DESC"
+
+	// contar total antes de aplicar limit y offser
+	countQuery := "SELECT COUNT(*) FROM products WHERE deleted_at IS NULL "
+	if len(conditions) > 0 {
+		countQuery += " AND " + strings.Join(conditions, " AND ")
+	}
+
+	var total int
+	err := r.db.GetContext(ctx, &total, countQuery, args...)
+	if err != nil {
+		r.logger.Error().Err(err).Msg("Failed to count search results")
+		return nil, 0, err
+	}
+
+	// agregar pagination
+	offset := (filters.Page - 1) * filters.PageSize
+	baseQuery += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argPosition, argPosition+1)
+	args = append(args, filters.PageSize, offset)
+
+	var products []Product
+	err = r.db.SelectContext(ctx, &products, baseQuery, args...)
+	if err != nil {
+		r.logger.Error().Err(err).Msg("Failed to search products")
+		return nil, 0, err
+	}
+
+	r.logger.Info().
+		Int("page", filters.Page).
+		Int("pageSize", filters.PageSize).
+		Int("total", total).
+		Msg("Products searched successfully")
+
+	return products, total, nil
 }

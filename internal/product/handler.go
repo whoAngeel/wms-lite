@@ -302,3 +302,40 @@ func (h *Handler) GetAllDeleted(c *gin.Context) {
 	h.logger.Info().Int("page", page).Int("page_size", pageSize).Msg("Deleted products retrieved successfully")
 	c.JSON(http.StatusOK, response)
 }
+
+func (h *Handler) Search(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	var filters SearchFilters
+	if err := c.ShouldBindQuery(&filters); err != nil {
+		h.logger.Warn().Err(err).Msg("Invalid query parameters for search")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query parameters"})
+		return
+	}
+
+	response, err := h.service.Search(ctx, filters)
+	if err != nil {
+		if err.Error() == "invalid date format for from_date. expected YYYY-MM-DD" ||
+			err.Error() == "invalid date format for to_date. expected YYYY-MM-DD" ||
+			err.Error() == "from_date must be less than or equal to to_date" ||
+			err.Error() == "min_stock cannot be negative" ||
+			err.Error() == "max_stock cannot be negative" ||
+			err.Error() == "min_stock cannot be greater than max_stock" ||
+			err.Error() == "invalid price format for min_price. expected float" ||
+			err.Error() == "invalid price format for max_price. expected float" ||
+			err.Error() == "min_price must be less than or equal to max_price" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		h.logger.Error().Err(err).Msg("Failed to search products")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search products"})
+		return
+	}
+
+	h.logger.Info().
+		Int("total", response.Pagination.Total).
+		Int("results", len(response.Data.([]ProductResponse))).
+		Msg("Products searched successfully")
+	c.JSON(http.StatusOK, response)
+}

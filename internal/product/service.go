@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 )
 
 type Service struct {
@@ -233,4 +234,86 @@ func (s *Service) GetDeleted(ctx context.Context, page, pageSize int) (*Paginate
 
 	return response, nil
 
+}
+
+func (s *Service) Search(
+	ctx context.Context, filters SearchFilters,
+) (*PaginatedResponse, error) {
+	if filters.Page <= 0 {
+		filters.Page = 1
+	}
+	if filters.PageSize <= 0 {
+		filters.PageSize = 10
+	}
+
+	filters.Name = strings.TrimSpace(filters.Name)
+	filters.SKU = strings.TrimSpace(filters.SKU)
+	filters.FromDate = strings.TrimSpace(filters.FromDate)
+	filters.ToDate = strings.TrimSpace(filters.ToDate)
+
+	// validar rango de stock (si ambos estan presentes)
+	if filters.MinStock != nil && filters.MaxStock != nil {
+		if *filters.MinStock > *filters.MaxStock {
+			// TODO: logger invalid range min > max
+			return nil, fmt.Errorf("min_stock cannot be greater than max_stock")
+		}
+	}
+
+	// validar stock no sea negativo
+	if filters.MinStock != nil && *filters.MinStock < 0 {
+		return nil, fmt.Errorf("min_stock cannot be negative")
+	}
+
+	if filters.MaxStock != nil && *filters.MaxStock < 0 {
+		return nil, fmt.Errorf("max_stock cannot be negative")
+	}
+
+	// validar rango de fechas (YYYY-MM-DD)
+	if filters.FromDate != "" {
+		if !isValidDateFormat(filters.FromDate) {
+			return nil, fmt.Errorf("invalid date format for from_date. expected YYYY-MM-DD")
+		}
+	}
+
+	if filters.ToDate != "" {
+		if !isValidDateFormat(filters.ToDate) {
+			return nil, fmt.Errorf("invalid date format for to_date. expected YYYY-MM-DD")
+		}
+	}
+
+	// llamar al repository
+	products, total, err := s.repo.Search(ctx, filters)
+	if err != nil {
+		return nil, err
+	}
+
+	var responses []ProductResponse
+	for _, p := range products {
+		responses = append(responses, p.ToResponse())
+	}
+
+	totalPages := (total + filters.PageSize - 1) / filters.PageSize
+
+	response := &PaginatedResponse{
+		Data: responses,
+		Pagination: Pagination{
+			Page:       filters.Page,
+			PageSize:   filters.PageSize,
+			TotalPages: totalPages,
+			Total:      total,
+		},
+	}
+
+	return response, nil
+
+}
+func isValidDateFormat(date string) bool {
+	// Regex simple para validar formato YYYY-MM-DD
+	if len(date) != 10 {
+		return false
+	}
+
+	// Intentar parsear con time.Parse
+	_, err := time.Parse("2006-01-02", date)
+	return err == nil
 }

@@ -94,7 +94,10 @@ func main() {
 	}
 
 	if cfg.Server.Env == "development" {
-		corsConfig.AllowOrigins = []string{"*"}
+		corsConfig.AllowOrigins = nil
+		corsConfig.AllowOriginFunc = func(origin string) bool {
+			return true
+		}
 	}
 
 	router.Use(cors.New(corsConfig))

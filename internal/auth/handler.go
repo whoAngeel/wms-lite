@@ -90,9 +90,12 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
+	// Configurar SameSite y Secure
+	sameSite := http.SameSiteLaxMode
 	if os.Getenv("ENV") == "production" {
-		c.SetSameSite(http.SameSiteStrictMode)
+		sameSite = http.SameSiteStrictMode
 	}
+	c.SetSameSite(sameSite)
 
 	secure := os.Getenv("ENV") == "production"
 	c.SetCookie("access_token", authResponse.AccessToken, 900, "/", "", secure, true)
@@ -151,9 +154,13 @@ func (h *Handler) Refresh(c *gin.Context) {
 		})
 		return
 	}
+	// Configurar SameSite y Secure
+	sameSite := http.SameSiteLaxMode
 	if os.Getenv("ENV") == "production" {
-		c.SetSameSite(http.SameSiteStrictMode)
+		sameSite = http.SameSiteStrictMode
 	}
+	c.SetSameSite(sameSite)
+
 	secure := os.Getenv("ENV") == "production"
 	c.SetCookie("access_token", authResponse.AccessToken, 900, "/", "", secure, true)
 	if authResponse.RefreshToken != "" {
@@ -188,9 +195,12 @@ func (h *Handler) Logout(c *gin.Context) {
 	}
 
 	// borrar cookies
+	sameSite := http.SameSiteLaxMode
 	if os.Getenv("ENV") == "production" {
-		c.SetSameSite(http.SameSiteStrictMode)
+		sameSite = http.SameSiteStrictMode
 	}
+	c.SetSameSite(sameSite)
+
 	secure := os.Getenv("ENV") == "production"
 	// Max-Age -1 para borrar
 	c.SetCookie("access_token", "", -1, "/", "", secure, true)

@@ -133,22 +133,23 @@ func (r *Repository) List(ctx context.Context, productID *int, movementType *Mov
 // CONCEPTO CRITICO: SELECT ... FOR UPDATE
 // ESTO bloquea la fila hasta que la transaccion termine (COMMIT o ROLLBACK)
 // Previene race conditions cuando dos requests intentan modificar el mismo producto
-func (r *Repository) GetProductStockForUpdate(ctx context.Context, tx *sqlx.Tx, productID int) (int, error) {
+func (r *Repository) GetProductStockForUpdate(ctx context.Context, tx *sqlx.Tx, productID int) (int, string, error) {
 	var stock int
+	var sku string
 	query := `
-		SELECT stock_quantity
+		SELECT stock_quantity, sku
 		FROM products 
 		WHERE id = $1
 		FOR UPDATE
 	`
 
 	// DEBE ejecutarse dentro de una transaccion
-	err := tx.QueryRowxContext(ctx, query, productID).Scan(&stock)
+	err := tx.QueryRowxContext(ctx, query, productID).Scan(&stock, &sku)
 	if err != nil {
-		return 0, fmt.Errorf("error getting product stock with lock: %w", err)
+		return 0, "", fmt.Errorf("error getting product stock with lock: %w", err)
 	}
 
-	return stock, nil
+	return stock, sku, nil
 }
 
 // Actualiza el stock de un producto

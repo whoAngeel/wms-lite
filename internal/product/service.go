@@ -2,17 +2,25 @@ package product
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/redis/go-redis/v9"
+	"github.com/rs/zerolog"
+	"github.com/whoAngeel/wms-lite/internal/platform"
 )
 
 type Service struct {
-	repo *Repository
+	repo   *Repository
+	logger zerolog.Logger
+	cache  *platform.Cache
 }
 
-func NewService(repo *Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo *Repository, logger zerolog.Logger, cache *platform.Cache) *Service {
+	serviceLogger := logger.With().Str("service", "product").Logger()
+	return &Service{repo: repo, logger: serviceLogger, cache: cache}
 }
 
 func (s *Service) Create(ctx context.Context, req CreateProductRequest) (*Product, error) {
@@ -46,9 +54,51 @@ func (s *Service) GetByID(ctx context.Context, id int) (*Product, error) {
 		return nil, fmt.Errorf("invalid ID: must be greater than 0")
 	}
 
+	cacheKey := fmt.Sprintf("product:%d", id)
+	// buscar en cache
+	cached, err := s.cache.Get(ctx, cacheKey)
+	if err == nil {
+		// cache HIT - deserializar JSON
+		var product Product
+		jsonErr := json.Unmarshal([]byte(cached), &product)
+		if jsonErr == nil {
+			s.logger.Debug().
+				Int("product_id", id).
+				Str("source", "cache").
+				Msg("Product retrieved from cache")
+			return &product, nil
+		}
+		// Si falla unmarshal, continuar a DB
+		s.logger.Warn().
+			Int("product_id", id).
+			Err(jsonErr).
+			Msg("Failed to unmarshal cached product")
+	} else if err != redis.Nil {
+		// error real de redis
+		s.logger.Warn().
+			Int("product_id", id).
+			Err(err).
+			Msg("Redis error while getting product")
+	}
+
+	// cache MISS - leer de BD
+
 	product, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
+	}
+
+	// guardar en redis
+	jsonData, _ := json.Marshal(product)
+	if setErr := s.cache.Set(ctx, cacheKey, jsonData, 5*time.Minute); setErr != nil {
+		s.logger.Warn().
+			Int("product_id", id).
+			Err(setErr).
+			Msg("Failed to cache product")
+	} else {
+		s.logger.Debug().
+			Int("product_id", id).
+			Msg("Product cached successfully")
 	}
 
 	return product, nil
@@ -59,9 +109,36 @@ func (s *Service) GetBySKU(ctx context.Context, sku string) (*Product, error) {
 		return nil, fmt.Errorf("invalid SKU: must not be empty")
 	}
 
+	cacheKey := fmt.Sprintf("product:sku:%s", sku)
+
+	// leer cachet attempt
+	cached, err := s.cache.Get(ctx, cacheKey)
+	if err == nil {
+		var product Product
+		jsonErr := json.Unmarshal([]byte(cached), &product)
+		if jsonErr == nil {
+			s.logger.Debug().Str("sku", sku).Str("source", "cache").Msg("Product retrieved from cached")
+			return &product, nil
+		}
+		s.logger.Warn().Err(jsonErr).Msg("Failed to unmarshal cached product")
+
+	} else if err != redis.Nil {
+		s.logger.Warn().Str("sku", sku).Err(err).Msg("Redis error while getting product")
+	}
+
+	// cache miss
+	s.logger.Debug().Str("sku", sku).Msg("Cache miss - reading from DB")
 	product, err := s.repo.GetBySKU(ctx, sku)
 	if err != nil {
 		return nil, err
+	}
+
+	// guardar en redis
+	jsonData, _ := json.Marshal(product)
+	if setErr := s.cache.Set(ctx, cacheKey, jsonData, 5*time.Minute); setErr != nil {
+		s.logger.Warn().Str("sku", sku).Err(setErr).Msg("Failed to cache product")
+	} else {
+		s.logger.Debug().Str("sku", sku).Msg("Product cached successfully")
 	}
 
 	return product, nil
@@ -112,16 +189,30 @@ func (s *Service) Update(ctx context.Context, id int, req UpdateProductRequest) 
 		return nil, err
 	}
 
-	_, err := s.repo.GetByID(ctx, id)
+	existingProduct, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("product not found")
 	}
 
-	// actualizar
+	// actualizar en bd
 	product, err := s.repo.Update(ctx, id, req)
 	if err != nil {
 		return nil, fmt.Errorf("error updating product: %w", err)
 	}
+
+	// invalidar cache
+	cacheKeys := []string{
+		fmt.Sprintf("product:%d", id),
+		fmt.Sprintf("product:sku:%s", existingProduct.SKU),
+	}
+
+	if delErr := s.cache.Del(ctx, cacheKeys...); delErr != nil {
+		s.logger.Warn().Err(delErr).Msg("Failed to invalidate cache")
+	}
+	s.logger.Debug().
+		Int("product_id", id).
+		Strs("cache_keys", cacheKeys).
+		Msg("Product updated successfully")
 
 	return product, nil
 }
@@ -180,11 +271,30 @@ func (s *Service) SoftDelete(ctx context.Context, id int) error {
 		return fmt.Errorf("invalid product id")
 	}
 
-	// intentar hacer soft delete
-	err := s.repo.SoftDelete(ctx, id)
+	product, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
+
+	// intentar hacer soft delete
+	err = s.repo.SoftDelete(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	// invalidar cache
+	cacheKeys := []string{
+		fmt.Sprintf("product:%d", id),
+		fmt.Sprintf("product:sku:%s", product.SKU),
+	}
+
+	if delErr := s.cache.Del(ctx, cacheKeys...); delErr != nil {
+		s.logger.Warn().Err(delErr).Msg("Failed to invalidate cache")
+	}
+	s.logger.Debug().
+		Int("product_id", id).
+		Strs("cache_keys", cacheKeys).
+		Msg("Product soft deleted successfully")
 
 	return nil
 }
@@ -194,10 +304,29 @@ func (s *Service) Restore(ctx context.Context, id int) error {
 		return fmt.Errorf("invalid product id")
 	}
 
-	err := s.repo.Restore(ctx, id)
+	product, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
+
+	err = s.repo.Restore(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	// invalidar cache
+	cacheKeys := []string{
+		fmt.Sprintf("product:%d", id),
+		fmt.Sprintf("product:sku:%s", product.SKU),
+	}
+
+	if delErr := s.cache.Del(ctx, cacheKeys...); delErr != nil {
+		s.logger.Warn().Err(delErr).Msg("Failed to invalidate cache")
+	}
+	s.logger.Debug().
+		Int("product_id", id).
+		Strs("cache_keys", cacheKeys).
+		Msg("Product restored successfully")
 
 	return nil
 }

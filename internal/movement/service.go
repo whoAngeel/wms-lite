@@ -6,17 +6,24 @@ import (
 	"fmt"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/rs/zerolog"
+	"github.com/whoAngeel/wms-lite/internal/platform"
 )
 
 type Service struct {
-	repo *Repository
-	db   *sqlx.DB
+	repo   *Repository
+	db     *sqlx.DB
+	cache  *platform.Cache
+	logger zerolog.Logger
 }
 
-func NewService(repo *Repository, db *sqlx.DB) *Service {
+func NewService(repo *Repository, db *sqlx.DB, cache *platform.Cache, logger *zerolog.Logger) *Service {
+	moduleLogger := logger.With().Str("module", "movement").Logger()
 	return &Service{
-		repo: repo,
-		db:   db,
+		repo:   repo,
+		cache:  cache,
+		db:     db,
+		logger: moduleLogger,
 	}
 }
 
@@ -29,8 +36,8 @@ func NewService(repo *Repository, db *sqlx.DB) *Service {
 // 5. UPDATE stock en products
 // 6. INSERT movement
 // 7. COMMIT (o ROLLBACK si hay error)
-func (s *Service) CreateMovement(ctx context.Context, req CreateMovementRequest) (*MovementResponse, error) {
-	if err := s.validateCreateRequest(req); err != nil {
+func (s *Service) CreateMovement(ctx context.Context, req CreateMovementRequest) (resp *MovementResponse, err error) {
+	if err = s.validateCreateRequest(req); err != nil {
 		return nil, err
 	}
 
@@ -41,7 +48,7 @@ func (s *Service) CreateMovement(ctx context.Context, req CreateMovementRequest)
 	if !exists {
 		return nil, fmt.Errorf("product with ID [%d] not found", req.ProductID)
 	}
-	// iniciar transaccion
+
 	tx, err := s.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error starting transaction: %w", err)
@@ -55,7 +62,7 @@ func (s *Service) CreateMovement(ctx context.Context, req CreateMovementRequest)
 	}()
 
 	// obtener stock actual con lock pesimista
-	currentStock, err := s.repo.GetProductStockForUpdate(ctx, tx, req.ProductID)
+	currentStock, sku, err := s.repo.GetProductStockForUpdate(ctx, tx, req.ProductID)
 	if err != nil {
 		return nil, fmt.Errorf("error getting product stock: %w", err)
 	}
@@ -95,6 +102,18 @@ func (s *Service) CreateMovement(ctx context.Context, req CreateMovementRequest)
 	err = tx.Commit()
 	if err != nil {
 		return nil, fmt.Errorf("error committing transaction: %w", err)
+	}
+
+	// invalidar cache de producto afectado
+	cacheKeys := []string{
+		fmt.Sprintf("product:%d", req.ProductID),
+		fmt.Sprintf("product:sku:%s", sku),
+	}
+
+	if err := s.cache.Del(ctx, cacheKeys...); err != nil {
+		s.logger.Warn().Err(err).Int("product_id", req.ProductID).Msg("Failed to invalidate product cache")
+	} else {
+		s.logger.Debug().Int("product_id", req.ProductID).Msg("Product cache invalidated successfully")
 	}
 
 	// retornar el movimiento creado

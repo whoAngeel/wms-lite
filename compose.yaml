@@ -1,4 +1,16 @@
 services:
+  redis:
+    image: redis:8-alpine
+    container_name: wms-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - wms-network
+      # datos menos consultados
+    command: redis-server --appendonly yes --appendfsync everysec --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data # persistir appendonly.aof
   postgres:
     image: postgres:16-alpine
     container_name: wms-postgres
@@ -38,6 +50,7 @@ services:
       DB_NAME: ${DB_NAME}
       API_PORT: ${API_PORT}
       ENV: ${ENV}
+      REDIS_HOST: redis
     depends_on:
       postgres:
         condition: service_healthy
@@ -49,6 +62,8 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+  redis_data:
     driver: local
 
 networks:

@@ -27,6 +27,27 @@ func main() {
 
 	logger.Info().Str("env", cfg.Server.Env).Str("port", cfg.Server.Port).Msg("Starting WMS Lite")
 
+	// cache
+	cache, err := platform.NewCache(cfg.Cache)
+	if err != nil {
+		logger.Error().Err(err).Msg("Error connecting to cache")
+		return
+	}
+	defer cache.Close()
+	logger.Info().Msg("REDIS connected successfully")
+	/////
+	ctx := context.Background()
+	if err := cache.Set(ctx, "test_key", "¡Hola desde WMS Lite!", 1*time.Minute); err != nil {
+		logger.Error().Err(err).Msg("Error al hacer SET")
+	}
+	logger.Info().Msg("Cache test setted successfully")
+	value, err := cache.Get(ctx, "test_key")
+	if err != nil {
+		logger.Error().Err(err).Msg("Error getting cache")
+	}
+	logger.Info().Str("test_key", value).Msg("Cache test getted successfully")
+	/////
+
 	// 2 connect to database
 	db, err := platform.NewDatabase(cfg.Database)
 	if err != nil {
@@ -37,11 +58,11 @@ func main() {
 	logger.Info().Msg("Database connected successfully")
 
 	productRepo := product.NewRepository(db, logger)
-	productService := *product.NewService(productRepo)
+	productService := *product.NewService(productRepo, logger, cache)
 	productHandler := product.NewHandler(&productService, logger)
 
 	movementRepo := movement.NewRepository(db)
-	movementService := *movement.NewService(movementRepo, db)
+	movementService := *movement.NewService(movementRepo, db, cache, &logger)
 	movementHandler := movement.NewHandler(&movementService, logger)
 
 	authRepo := auth.NewRepository(db, logger)

@@ -15,6 +15,7 @@ type Config struct {
 	Database DatabaseConfig
 	Server   ServerConfig
 	Auth     AuthConfig
+	Cache    CacheConfig
 }
 
 type DatabaseConfig struct {
@@ -37,6 +38,13 @@ type ServerConfig struct {
 
 type AuthConfig struct {
 	JWTSecret string
+}
+
+type CacheConfig struct {
+	Host     string
+	Port     string
+	Password string
+	DB       int
 }
 
 // loadConfig carga las variables de entorno
@@ -87,6 +95,12 @@ func LoadConfig() (*Config, error) {
 		Auth: AuthConfig{
 			JWTSecret: jwtSecret,
 		},
+		Cache: CacheConfig{
+			Host:     getEnv("REDIS_HOST", "localhost"),
+			Port:     getEnv("REDIS_PORT", "6379"),
+			Password: getEnv("REDIS_PASSWORD", ""),
+			DB:       getEnvAsInt("REDIS_DB", 0),
+		},
 	}
 	return config, nil
 
@@ -98,4 +112,14 @@ func getEnv(key, defaultValue string) string {
 		return defaultValue
 	}
 	return value
+}
+
+func getEnvAsInt(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if intValue, err := strconv.Atoi(value); err == nil {
+			return intValue
+		}
+	}
+
+	return defaultValue
 }

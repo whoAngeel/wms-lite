@@ -114,14 +114,12 @@ func (h *Handler) Refresh(c *gin.Context) {
 	defer cancel()
 
 	var req RefreshRequest
-	// Try binding JSON, but ignore error if body is empty (might be cookie-only request)
-	c.ShouldBindJSON(&req)
-
-	refreshToken := req.RefreshToken
-	if refreshToken == "" {
-		cookieToken, err := c.Cookie("refresh_token")
-		if err == nil {
-			refreshToken = cookieToken
+	// Intentar obtener desde cookie primero
+	refreshToken, err := c.Cookie("refresh_token")
+	if err != nil || refreshToken == "" {
+		// Fallback: leer desde body
+		if err := c.ShouldBindJSON(&req); err == nil {
+			refreshToken = req.RefreshToken
 		}
 	}
 
@@ -175,14 +173,12 @@ func (h *Handler) Logout(c *gin.Context) {
 	defer cancel()
 
 	var req RefreshRequest
-	// Try binding JSON, but ignore error if body is empty
-	c.ShouldBindJSON(&req)
-
-	refreshToken := req.RefreshToken
-	if refreshToken == "" {
-		cookieToken, err := c.Cookie("refresh_token")
-		if err == nil {
-			refreshToken = cookieToken
+	// Intentar obtener desde cookie primero
+	refreshToken, err := c.Cookie("refresh_token")
+	if err != nil || refreshToken == "" {
+		// Fallback: leer desde body
+		if err := c.ShouldBindJSON(&req); err == nil {
+			refreshToken = req.RefreshToken
 		}
 	}
 

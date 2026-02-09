@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -89,6 +90,14 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
+	if os.Getenv("ENV") == "production" {
+		c.SetSameSite(http.SameSiteStrictMode)
+	}
+
+	secure := os.Getenv("ENV") == "production"
+	c.SetCookie("access_token", authResponse.AccessToken, 900, "/", "", secure, true)
+	c.SetCookie("refresh_token", authResponse.RefreshToken, 604800, "/", "", secure, true)
+
 	h.logger.Info().
 		Str("email", req.Email).
 		Str("ip", ipAddress).
@@ -102,15 +111,25 @@ func (h *Handler) Refresh(c *gin.Context) {
 	defer cancel()
 
 	var req RefreshRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.Warn().Err(err).Msg("Invalid refresh request")
+	// Try binding JSON, but ignore error if body is empty (might be cookie-only request)
+	c.ShouldBindJSON(&req)
+
+	refreshToken := req.RefreshToken
+	if refreshToken == "" {
+		cookieToken, err := c.Cookie("refresh_token")
+		if err == nil {
+			refreshToken = cookieToken
+		}
+	}
+
+	if refreshToken == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
+			"error": "refresh_token required in body or cookie",
 		})
 		return
 	}
 
-	authResponse, err := h.service.Refresh(ctx, req.RefreshToken)
+	authResponse, err := h.service.Refresh(ctx, refreshToken)
 	if err != nil {
 		// diferentes mensajes segun error
 		if err.Error() == "invalid refresh token" {
@@ -132,6 +151,15 @@ func (h *Handler) Refresh(c *gin.Context) {
 		})
 		return
 	}
+	if os.Getenv("ENV") == "production" {
+		c.SetSameSite(http.SameSiteStrictMode)
+	}
+	secure := os.Getenv("ENV") == "production"
+	c.SetCookie("access_token", authResponse.AccessToken, 900, "/", "", secure, true)
+	if authResponse.RefreshToken != "" {
+		c.SetCookie("refresh_token", authResponse.RefreshToken, 604800, "/", "", secure, true)
+	}
+
 	c.JSON(http.StatusOK, authResponse)
 }
 
@@ -140,17 +168,34 @@ func (h *Handler) Logout(c *gin.Context) {
 	defer cancel()
 
 	var req RefreshRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.Warn().Err(err).Msg("Invalid refresh request")
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	// Try binding JSON, but ignore error if body is empty
+	c.ShouldBindJSON(&req)
+
+	refreshToken := req.RefreshToken
+	if refreshToken == "" {
+		cookieToken, err := c.Cookie("refresh_token")
+		if err == nil {
+			refreshToken = cookieToken
+		}
 	}
-	err := h.service.Logout(ctx, req.RefreshToken)
-	if err != nil {
-		h.logger.Error().Err(err).Msg("Logout failed")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to logout"})
-		return
+
+	// invalidar en backend (si se tiene el token)
+	if refreshToken != "" {
+		if err := h.service.Logout(ctx, refreshToken); err != nil {
+			h.logger.Error().Err(err).Msg("Logout service failed")
+			// continuamos para borrar cookies de todos modos
+		}
 	}
+
+	// borrar cookies
+	if os.Getenv("ENV") == "production" {
+		c.SetSameSite(http.SameSiteStrictMode)
+	}
+	secure := os.Getenv("ENV") == "production"
+	// Max-Age -1 para borrar
+	c.SetCookie("access_token", "", -1, "/", "", secure, true)
+	c.SetCookie("refresh_token", "", -1, "/", "", secure, true)
+
 	c.Status(http.StatusNoContent)
 }
 

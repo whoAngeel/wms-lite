@@ -25,19 +25,21 @@ func (m *Middleware) RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
+		var token string
+		if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
+			token = strings.TrimPrefix(authHeader, "Bearer ")
+		} else {
+			cookieToken, err := c.Cookie("access_token")
+			if err == nil {
+				token = cookieToken
+			}
+		}
+
+		if token == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header or cookie required"})
 			c.Abort()
 			return
 		}
-
-		if !strings.HasPrefix(authHeader, "Bearer ") {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization format"})
-			c.Abort()
-			return
-		}
-
-		token := strings.TrimPrefix(authHeader, "Bearer ")
 
 		claims, err := m.service.ValidateAccessToken(token)
 		if err != nil {

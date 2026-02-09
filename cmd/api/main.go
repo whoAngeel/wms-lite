@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 	"time"
 
@@ -93,7 +94,10 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}
 
-	if cfg.Server.Env == "development" {
+	// Verificar si se permite todo (*) explícitamente o es entorno de desarrollo
+	allowAllOrigins := slices.Contains(cfg.Server.AllowedOrigins, "*")
+
+	if allowAllOrigins || cfg.Server.Env == "development" {
 		corsConfig.AllowOrigins = nil
 		corsConfig.AllowOriginFunc = func(origin string) bool {
 			return true

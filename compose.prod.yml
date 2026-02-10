@@ -13,6 +13,7 @@ services:
       ENV: production
       JWT_SECRET: ${JWT_SECRET}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      COOKIE_SECURE: ${COOKIE_SECURE}
       REDIS_HOST: redis
       REDIS_PORT: 6379
     networks:

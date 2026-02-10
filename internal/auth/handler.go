@@ -91,7 +91,7 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 
 	// Configurar SameSite y Secure
-	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetSameSite(http.SameSiteNoneMode)
 
 	secure := os.Getenv("COOKIE_SECURE") == "true"
 	c.SetCookie("access_token", authResponse.AccessToken, 900, "/", "", secure, true)
@@ -149,7 +149,7 @@ func (h *Handler) Refresh(c *gin.Context) {
 		return
 	}
 	// Configurar SameSite y Secure
-	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetSameSite(http.SameSiteNoneMode)
 
 	secure := os.Getenv("COOKIE_SECURE") == "true"
 	c.SetCookie("access_token", authResponse.AccessToken, 900, "/", "", secure, true)
@@ -183,8 +183,7 @@ func (h *Handler) Logout(c *gin.Context) {
 	}
 
 	// borrar cookies
-	// borrar cookies
-	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetSameSite(http.SameSiteNoneMode)
 
 	secure := os.Getenv("COOKIE_SECURE") == "true"
 	// Max-Age -1 para borrar
